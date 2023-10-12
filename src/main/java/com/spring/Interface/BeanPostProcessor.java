@@ -9,6 +9,8 @@ package com.spring.Interface;
  * 经过我的尝试，即使有多个BeanPostProcessor，
  * 这些类都不会这些这些方法
  * 并且BeanPostProcessor依赖的类也不会执行这些方法
+ * 还有需要考虑的是，如果有多个BeanPostProcessor，有一些BeanPostProcessor依赖了其他普通的bean
+ * 这些bean会执行BeanPostProcessor吗？我这里没有做特殊处理，所以是会执行已经加载的BeanPostProcessor的
  *
  * @author 郭建勇
  * @date 2023/10/11

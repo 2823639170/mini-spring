@@ -13,9 +13,10 @@ import com.spring.model.BeanDefinition;
 
 import java.beans.Introspector;
 import java.io.File;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -37,27 +38,43 @@ public class GjySpringApplicationContext {
      */
     private Map<String, Object> singletonObjectMap = new ConcurrentHashMap<>();
 
+    /**
+     * 用来保存所有实现了BeanPostProcessor的对象，在beanMap中也会再保存一份
+     */
+    private final List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
 
     public GjySpringApplicationContext(Class<?> appConfig) {
         this.appConfig = appConfig;
         init();
-        initBeanPostProcess();
+        // 注册BeanPostProcess
+        registerBeanPostProcess();
+        // 注册单例bean
+        registerSingletonBean();
+
+    }
+
+    /**
+     * 注册单例bean
+     */
+    private void registerSingletonBean() {
         for (Map.Entry<String, BeanDefinition> entry : beanDefinitionMap.entrySet()) {
-            singletonObjectMap.put(entry.getKey(), createBean(entry.getKey(), entry.getValue()));
+            getBean(entry.getKey());
         }
     }
 
-    private void initBeanPostProcess() {
+    /**
+     * 注册BeanPostProcess
+     */
+    private void registerBeanPostProcess() {
 
-//        for (Map.Entry<String, BeanDefinition> entry : beanDefinitionMap.entrySet()) {
-//            Class aClass = entry.getClass().getClass();
-//            if (BeanPostProcessor.class.isAssignableFrom(aClass)) {
-//                BeanDefinition definition = entry.getValue();
-//                getBean(entry.getKey())
-//            }
-//
-//
-//        }
+        for (Map.Entry<String, BeanDefinition> entry : beanDefinitionMap.entrySet()) {
+            Class aClass = entry.getValue().getClazz();
+            if (BeanPostProcessor.class.isAssignableFrom(aClass)) {
+                Object bean = getBean(entry.getKey());
+                beanPostProcessorList.add((BeanPostProcessor) bean);
+                singletonObjectMap.put(entry.getKey(), bean);
+            }
+        }
 
     }
 
@@ -88,7 +105,7 @@ public class GjySpringApplicationContext {
     /**
      * 扫描目录，解析类上面的注解，并生成definition对象
      *
-     * @param file
+     * @param file 文件对象
      */
     private void scanFile(File file) {
         if (!file.isDirectory()) {
@@ -115,7 +132,7 @@ public class GjySpringApplicationContext {
                         if ("".equals(beanName)) {
                             beanName = Introspector.decapitalize(loadClass.getSimpleName());
                         }
-
+                        // 判断是不是单例
                         ScopeType scopeType = ScopeType.SINGLETON;
                         if (loadClass.isAnnotationPresent(Scope.class)) {
                             scopeType = ((Scope) loadClass.getDeclaredAnnotation(Scope.class)).value();
@@ -165,8 +182,9 @@ public class GjySpringApplicationContext {
 
     /**
      * 获取bean对象
+     * 1. 调用这个方法是，可能还没有被加入map中，一开始调用时和依赖注入时
      *
-     * @param beanName
+     * @param beanName beanName
      * @return
      */
     public Object getBean(String beanName) {
@@ -176,6 +194,9 @@ public class GjySpringApplicationContext {
         } else {
             // 单例
             if (beanDefinition.isSingleton()) {
+                if (!singletonObjectMap.containsKey(beanName)) {
+                    singletonObjectMap.put(beanName, createBean(beanName, beanDefinition));
+                }
                 return singletonObjectMap.get(beanName);
             } else { // 多例
                 return createBean(beanName, beanDefinition);
@@ -213,13 +234,24 @@ public class GjySpringApplicationContext {
                 BeanNameAware beanNameAware = (BeanNameAware) instance;
                 beanNameAware.setBeamName(beanName);
             }
-            // 调用afterPropertySet方法
+            // 如果没有实现BeanPostProcessor，则需要在创建前调用BeanPostProcessor的before方法
+            if (!(instance instanceof BeanPostProcessor)) {
+                for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
+                    instance = beanPostProcessor.postProcessBeforeInitialization(instance, beanName);
+                }
+            }
+
+            // 调用InitializingBean的afterPropertySet方法
             if (instance instanceof InitializingBean) {
                 InitializingBean initializingBean = (InitializingBean) instance;
                 initializingBean.afterPropertySet();
             }
-
-
+            // 如果没有实现BeanPostProcessor，则需要在创建后调用BeanPostProcessor的after方法
+            if (!(instance instanceof BeanPostProcessor)) {
+                for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
+                    instance = beanPostProcessor.postProcessAfterInitialization(instance, beanName);
+                }
+            }
             return instance;
         } catch (InstantiationException e) {
             e.printStackTrace();
