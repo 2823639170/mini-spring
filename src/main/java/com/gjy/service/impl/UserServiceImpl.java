@@ -28,7 +28,10 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void transfer(int fromId, int toId, int money) {
         userDao.updateMoney(fromId, -money);
+        System.out.println(fromId +"用户已经扣钱");
+//        int num = 10/0;
         userDao.updateMoney(toId, money);
+        System.out.println(toId +"用户已经加钱");
         System.out.println("转账完成！");
     }
 

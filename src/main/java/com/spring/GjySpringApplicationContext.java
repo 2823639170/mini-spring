@@ -3,13 +3,11 @@ package com.spring;
 import com.spring.Interface.BeanNameAware;
 import com.spring.Interface.BeanPostProcessor;
 import com.spring.Interface.InitializingBean;
-import com.spring.annotation.Autowired;
-import com.spring.annotation.Component;
-import com.spring.annotation.ComponentScan;
-import com.spring.annotation.Scope;
+import com.spring.annotation.*;
 import com.spring.aop.anno.Around;
 import com.spring.aop.anno.Aspect;
 import com.spring.aop.model.ProceedingJoinPoint;
+import com.spring.aop.proxy.CglibProxy;
 import com.spring.aop.proxy.JdkProxy;
 import com.spring.contant.ScopeType;
 import com.spring.model.BeanDefinition;
@@ -23,10 +21,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -427,6 +422,19 @@ public class GjySpringApplicationContext {
                 for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
                     instance = beanPostProcessor.postProcessAfterInitialization(instance, beanName);
                 }
+            }
+            Method[] methods = clz.getDeclaredMethods();
+            HashSet<Method> set = new HashSet<>();
+            for (Method method : methods) {
+                if (method.isAnnotationPresent(Transactional.class)) {
+                    set.add(method);
+                }
+            }
+            if (!set.isEmpty()) {
+                CglibProxy cglibProxy = new CglibProxy(clz, instance, set);
+                Object proxyInstance = cglibProxy.getProxyInstance();
+                proxyObjectMap.put(proxyInstance , instance);
+                instance = proxyInstance;
             }
             return instance;
         } catch (InstantiationException e) {

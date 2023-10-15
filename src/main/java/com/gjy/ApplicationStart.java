@@ -27,8 +27,8 @@ public class ApplicationStart {
 //        System.out.println(orderService.getUserService());
 //        System.out.println(orderService.getBeamName());
         UserController userController = (UserController) applicationContext.getBean(UserController.class);
-        userController.print();
-//        userController.transfer();
+//        userController.print();
+        userController.transfer();
     }
 
 }
