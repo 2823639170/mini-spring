@@ -18,6 +18,9 @@ public class UserController {
     public void print(){
         userService.print();
     }
+    public void transfer(){
+        userService.transfer(1 , 2 , 10);
+    }
 
 
 }

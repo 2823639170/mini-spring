@@ -9,4 +9,5 @@ public interface UserDao {
 
     String getUsername();
 
+    int updateMoney(int id, int money);
 }

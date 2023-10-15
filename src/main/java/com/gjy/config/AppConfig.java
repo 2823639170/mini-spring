@@ -8,4 +8,5 @@ import com.spring.annotation.ComponentScan;
  **/
 @ComponentScan("com.gjy")
 public class AppConfig {
+
 }

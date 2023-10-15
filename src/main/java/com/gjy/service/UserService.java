@@ -13,5 +13,7 @@ public interface UserService {
 
     void print();
 
+    void transfer(int fromId , int toId , int money);
+
 
 }
