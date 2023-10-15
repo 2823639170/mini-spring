@@ -4,7 +4,6 @@ import com.spring.aop.model.ProceedingJoinPoint;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.lang.annotation.Target;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -30,13 +29,13 @@ public class JdkProxy {
      */
     private Method targetMethod;
     /**
-     * Aop类的class对象
+     * Aop类的实例对象
      */
-    private Class AopClass;
+    private Object aopObject;
     /**
      * Aop方法
      */
-    private Method AopMethod;
+    private Method aopMethod;
 
 
     public Object getProxy() {
@@ -45,8 +44,7 @@ public class JdkProxy {
             public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                 if (method.getName().equals(targetMethod.getName())) {
                     ProceedingJoinPoint proceedingJoinPoint = new ProceedingJoinPoint(targetBean, method, args);
-                    Object newInstance = AopClass.newInstance();
-                    return AopMethod.invoke(newInstance, proceedingJoinPoint);
+                    return aopMethod.invoke(aopObject, proceedingJoinPoint);
                 } else {
                     return method.invoke(targetBean, args);
                 }

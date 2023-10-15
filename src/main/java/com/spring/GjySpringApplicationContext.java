@@ -105,7 +105,9 @@ public class GjySpringApplicationContext {
                         Method targetMethod = targetClass.getDeclaredMethod(methodName);
                         // 获取目标类的实例对象，用于反射调用
                         Object targetBean = getBean(targetClass);
-                        JdkProxy jdkProxy = new JdkProxy(targetClass, targetBean, targetMethod, aopClass, aopMethod);
+                        // 获取aop类的实例对象，用于反射调用
+                        Object aopBean = getBean(aopClass);
+                        JdkProxy jdkProxy = new JdkProxy(targetClass, targetBean, targetMethod, aopBean, aopMethod);
                         Object proxy = jdkProxy.getProxy();
                         BeanDefinition beanDefinition = classDefinitionMap.get(targetClass);
                         proxyObjectMap.put(proxy, classObjectMap.get(targetClass));
@@ -179,7 +181,6 @@ public class GjySpringApplicationContext {
             // 寻找Aspect类
             if (clazz.isAnnotationPresent(Aspect.class)) {
                 aopClassSet.add(clazz);
-                continue;
             }
             // 单例
             if (beanDefinition.isSingleton()) {
