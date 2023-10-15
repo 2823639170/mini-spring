@@ -30,8 +30,8 @@ public class ProceedingJoinPoint {
     public Object proceed() {
         try {
             //调用目标方法
-            System.out.println(method.getName());
-            System.out.println(targetObject);
+//            System.out.println(method.getName());
+//            System.out.println(targetObject);
             return method.invoke(targetObject, args);
         } catch (Exception e) {
             e.printStackTrace();
