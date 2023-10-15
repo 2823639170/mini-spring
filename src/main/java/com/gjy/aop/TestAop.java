@@ -1,9 +1,11 @@
 package com.gjy.aop;
 
+import com.spring.annotation.Component;
 import com.spring.aop.anno.Around;
 import com.spring.aop.anno.Aspect;
 import com.spring.aop.model.ProceedingJoinPoint;
 
+import javax.swing.text.rtf.RTFEditorKit;
 import java.lang.reflect.InvocationTargetException;
 
 /**
@@ -11,20 +13,18 @@ import java.lang.reflect.InvocationTargetException;
  * @date 2023/10/14
  **/
 @Aspect
+@Component
 public class TestAop {
 
-    @Around(value = "com.service.user.print")
-    public void around(ProceedingJoinPoint proceedingJoinPoint) {
-        System.out.println("--------before--------");
-        try {
-            proceedingJoinPoint.getMethod().invoke(proceedingJoinPoint.getTargetObject(), proceedingJoinPoint.getArgs());
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
-        }
-        System.out.println("--------after--------");
-
+    @Around(execution = "com.gjy.service.impl.UserServiceImpl.print")
+    public Object around(ProceedingJoinPoint proceedingJoinPoint) {
+        Object result = null;
+        result = proceedingJoinPoint.proceed();
+        System.out.println("==>前置日志通知.......");
+        //调用目标对象的目标方法
+        result = proceedingJoinPoint.proceed();
+        System.out.println("==>返回日志通知.......");
+        return result;
     }
 
 }

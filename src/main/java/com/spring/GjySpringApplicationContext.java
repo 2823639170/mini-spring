@@ -7,18 +7,28 @@ import com.spring.annotation.Autowired;
 import com.spring.annotation.Component;
 import com.spring.annotation.ComponentScan;
 import com.spring.annotation.Scope;
+import com.spring.aop.anno.Around;
+import com.spring.aop.anno.Aspect;
+import com.spring.aop.model.ProceedingJoinPoint;
+import com.spring.aop.proxy.JdkProxy;
 import com.spring.contant.ScopeType;
 import com.spring.model.BeanDefinition;
+import jdk.nashorn.internal.ir.JoinPredecessor;
 
 
 import java.beans.Introspector;
 import java.io.File;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * @author 郭建勇
@@ -50,6 +60,14 @@ public class GjySpringApplicationContext {
      */
     private Map<Class, Object> classObjectMap = new ConcurrentHashMap<>();
     /**
+     * Class对象和实例对象的映射
+     */
+    private Set<Class<?>> aopClassSet = new CopyOnWriteArraySet<>();
+    /**
+     * 代理对象和未被代理实例对象的映射，用于依赖注入
+     */
+    private Map<Object, Object> proxyObjectMap = new ConcurrentHashMap<>();
+    /**
      * 用来保存所有实现了BeanPostProcessor的对象，在beanMap中也会再保存一份
      */
     private final List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
@@ -57,44 +75,93 @@ public class GjySpringApplicationContext {
     public GjySpringApplicationContext(Class<?> appConfig) {
         this.appConfig = appConfig;
         // 注册BeanDefinition
-        init();
+        registerBeanDefinition();
         // 注册BeanPostProcess
         registerBeanPostProcess();
         // 注册单例bean
         registerSingletonBean();
+        // aop代理
+        doAop();
         // 依赖注入
         doDI();
+    }
+
+    private void doAop() {
+
+        for (Class aopClass : aopClassSet) {
+            for (Method aopMethod : aopClass.getDeclaredMethods()) {
+                if (aopMethod.isAnnotationPresent(Around.class)) {
+                    Around aroundAnnotation = aopMethod.getDeclaredAnnotation(Around.class);
+                    // 获取注解上的值
+                    String execution = aroundAnnotation.execution();
+                    // 要代理的目标类全名称： com.bruceliu.service.impl.OrderServiceImpl
+                    String fullClass = execution.substring(0, execution.lastIndexOf("."));
+                    // 要被代理的方法名字
+                    String methodName = execution.substring(execution.lastIndexOf(".") + 1);
+                    try {
+                        // 获取目标类的class对象
+                        Class targetClass = Class.forName(fullClass);
+                        // 获取目标方法
+                        Method targetMethod = targetClass.getDeclaredMethod(methodName);
+                        // 获取目标类的实例对象，用于反射调用
+                        Object targetBean = getBean(targetClass);
+                        JdkProxy jdkProxy = new JdkProxy(targetClass, targetBean, targetMethod, aopClass, aopMethod);
+                        Object proxy = jdkProxy.getProxy();
+                        BeanDefinition beanDefinition = classDefinitionMap.get(targetClass);
+                        proxyObjectMap.put(proxy, classObjectMap.get(targetClass));
+                        singletonObjectMap.put(beanDefinition.getBeanName(), proxy);
+                        classObjectMap.put(targetClass, proxy);
+                    } catch (ClassNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (NoSuchMethodException e) {
+                        e.printStackTrace();
+                    }
+
+                }
+            }
+
+        }
+
+
     }
 
     /**
      * 依赖注入
      */
     private void doDI() {
+        for (Map.Entry<Object, Object> entry : proxyObjectMap.entrySet()) {
+            Object instance = entry.getValue();
+            doDIAllField(instance);
+        }
         for (Map.Entry<String, Object> entry : singletonObjectMap.entrySet()) {
             Object instance = entry.getValue();
-            Class clz = instance.getClass();
-            Field[] fields = clz.getDeclaredFields();
-            // 依赖注入
-            for (Field field : fields) {
-                if (field.isAnnotationPresent(Autowired.class)) {
-                    field.setAccessible(true);
-                    String fieldName = field.getName();
-                    Class clazz = field.getType();
-                    // 根据类型获取bean对象
-                    Object bean = getBean(clazz);
-                    // 根据接口类型获取bean对象
-                    if (bean == null) {
-                        bean = getBeanByInterface(clazz);
-                    }
-                    // 根据beanName获取对象
-                    if (bean == null) {
-                        bean = getBean(fieldName);
-                    }
-                    try {
-                        field.set(instance, bean);
-                    } catch (IllegalAccessException e) {
-                        e.printStackTrace();
-                    }
+            doDIAllField(instance);
+        }
+    }
+
+    private void doDIAllField(Object instance) {
+        Class clz = instance.getClass();
+        Field[] fields = clz.getDeclaredFields();
+        // 依赖注入
+        for (Field field : fields) {
+            if (field.isAnnotationPresent(Autowired.class)) {
+                field.setAccessible(true);
+                String fieldName = field.getName();
+                Class clazz = field.getType();
+                // 根据类型获取bean对象
+                Object bean = getBean(clazz);
+                // 根据接口类型获取bean对象
+                if (bean == null) {
+                    bean = getBeanByInterface(clazz);
+                }
+                // 根据beanName获取对象
+                if (bean == null) {
+                    bean = getBean(fieldName);
+                }
+                try {
+                    field.set(instance, bean);
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -109,6 +176,11 @@ public class GjySpringApplicationContext {
             String beanName = entry.getKey();
             BeanDefinition beanDefinition = entry.getValue();
             Class clazz = beanDefinition.getClazz();
+            // 寻找Aspect类
+            if (clazz.isAnnotationPresent(Aspect.class)) {
+                aopClassSet.add(clazz);
+                continue;
+            }
             // 单例
             if (beanDefinition.isSingleton()) {
                 Object bean = createBean(beanName, beanDefinition);
@@ -144,7 +216,7 @@ public class GjySpringApplicationContext {
     /**
      * 解析目录
      */
-    private void init() {
+    private void registerBeanDefinition() {
         ComponentScan componentScan = appConfig.getDeclaredAnnotation(ComponentScan.class);
         if (componentScan == null) {
             return;
@@ -331,17 +403,7 @@ public class GjySpringApplicationContext {
         try {
             Object instance = beanDefinition.getClazz().newInstance();
             Class<?> clz = instance.getClass();
-            // 先不进行依赖注入，避免循环依赖
-//            Field[] fields = clz.getDeclaredFields();
-//            // 依赖注入
-//            for (Field field : fields) {
-//                if (field.isAnnotationPresent(Autowired.class)) {
-//                    field.setAccessible(true);
-//                    String fieldName = field.getName();
-//                    Object bean = getBean(fieldName);
-//                    field.set(instance, bean);
-//                }
-//            }
+
             // 设置beamName
             if (instance instanceof BeanNameAware) {
                 BeanNameAware beanNameAware = (BeanNameAware) instance;

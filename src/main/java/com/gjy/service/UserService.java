@@ -11,7 +11,7 @@ import com.spring.contant.ScopeType;
 //@Scope(ScopeType.PROTOTYPE)
 public interface UserService {
 
-    public void print();
+    void print();
 
 
 }
