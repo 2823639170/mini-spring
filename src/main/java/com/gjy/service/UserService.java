@@ -8,7 +8,10 @@ import com.spring.contant.ScopeType;
  * @author 郭建勇
  * @date 2023/10/11
  **/
-@Component
-@Scope(ScopeType.PROTOTYPE)
-public class UserService {
+//@Scope(ScopeType.PROTOTYPE)
+public interface UserService {
+
+    public void print();
+
+
 }

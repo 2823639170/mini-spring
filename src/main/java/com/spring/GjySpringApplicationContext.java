@@ -37,7 +37,14 @@ public class GjySpringApplicationContext {
      * 单例池
      */
     private Map<String, Object> singletonObjectMap = new ConcurrentHashMap<>();
-
+    /**
+     * 接口和实现类的映射单例池
+     */
+    private Map<String, Object> interfaceImplMap = new ConcurrentHashMap<>();
+    /**
+     * Class对象和实例对象的映射
+     */
+    private Map<String, Object> classObjectMap = new ConcurrentHashMap<>();
     /**
      * 用来保存所有实现了BeanPostProcessor的对象，在beanMap中也会再保存一份
      */
@@ -45,11 +52,39 @@ public class GjySpringApplicationContext {
 
     public GjySpringApplicationContext(Class<?> appConfig) {
         this.appConfig = appConfig;
+        // 注册BeanDefinition
         init();
         // 注册BeanPostProcess
         registerBeanPostProcess();
         // 注册单例bean
         registerSingletonBean();
+        // 依赖注入
+        doDI();
+    }
+
+    /**
+     * 依赖注入
+     */
+    private void doDI() {
+        for (Map.Entry<String, Object> entry : singletonObjectMap.entrySet()) {
+            Object instance = entry.getValue();
+            Class clz = instance.getClass();
+            Field[] fields = clz.getDeclaredFields();
+            // 依赖注入
+            for (Field field : fields) {
+                if (field.isAnnotationPresent(Autowired.class)) {
+                    field.setAccessible(true);
+                    String fieldName = field.getName();
+                    Object bean = getBean(fieldName);
+                    try {
+                        field.set(instance, bean);
+                    } catch (IllegalAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+
 
     }
 
@@ -219,16 +254,17 @@ public class GjySpringApplicationContext {
         try {
             Object instance = beanDefinition.getClazz().newInstance();
             Class<?> clz = instance.getClass();
-            Field[] fields = clz.getDeclaredFields();
-            // 依赖注入
-            for (Field field : fields) {
-                if (field.isAnnotationPresent(Autowired.class)) {
-                    field.setAccessible(true);
-                    String fieldName = field.getName();
-                    Object bean = getBean(fieldName);
-                    field.set(instance, bean);
-                }
-            }
+            // 先不进行依赖注入，避免循环依赖
+//            Field[] fields = clz.getDeclaredFields();
+//            // 依赖注入
+//            for (Field field : fields) {
+//                if (field.isAnnotationPresent(Autowired.class)) {
+//                    field.setAccessible(true);
+//                    String fieldName = field.getName();
+//                    Object bean = getBean(fieldName);
+//                    field.set(instance, bean);
+//                }
+//            }
             // 设置beamName
             if (instance instanceof BeanNameAware) {
                 BeanNameAware beanNameAware = (BeanNameAware) instance;
