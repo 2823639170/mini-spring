@@ -1,8 +1,9 @@
 package com.gjy;
 
 import com.gjy.config.AppConfig;
+import com.gjy.controller.UserController;
 import com.gjy.service.OrderService;
-import com.gjy.service.UserService;
+import com.gjy.service.impl.OrderServiceImpl;
 import com.spring.GjySpringApplicationContext;
 
 /**
@@ -17,10 +18,11 @@ public class ApplicationStart {
 //        System.out.println(applicationContext.getBean("userService"));
 //        System.out.println(applicationContext.getBean("userService"));
 //        System.out.println(applicationContext.getBean("userService"));
-        OrderService orderService = (OrderService) applicationContext.getBean("orderService");
-        System.out.println(orderService.getUserService());
-        System.out.println(orderService.getBeamName());
-
+//        OrderServiceImpl orderService = (OrderServiceImpl) applicationContext.getBeanByInterface(OrderService.class);
+//        System.out.println(orderService.getUserService());
+//        System.out.println(orderService.getBeamName());
+        UserController userController = (UserController)applicationContext.getBean(UserController.class);
+        userController.print();
     }
 
 }

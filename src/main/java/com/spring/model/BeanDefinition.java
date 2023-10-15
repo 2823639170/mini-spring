@@ -14,6 +14,8 @@ import lombok.Data;
 @AllArgsConstructor
 public class BeanDefinition {
 
+    private String beanName;
+
     private Class clazz;
 
     private ScopeType scope;

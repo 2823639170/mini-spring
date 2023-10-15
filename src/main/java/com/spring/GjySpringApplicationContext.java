@@ -29,9 +29,13 @@ public class GjySpringApplicationContext {
     private final Class<?> appConfig;
 
     /**
-     * 保存beanDefinition信息
+     * 保存beanDefinition信息,key为beanName
      */
-    private Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>();
+    private Map<String, BeanDefinition> beanNameDefinitionMap = new ConcurrentHashMap<>();
+    /**
+     * 保存beanDefinition信息,,key为class对象
+     */
+    private Map<Class, BeanDefinition> classDefinitionMap = new ConcurrentHashMap<>();
 
     /**
      * 单例池
@@ -40,11 +44,11 @@ public class GjySpringApplicationContext {
     /**
      * 接口和实现类的映射单例池
      */
-    private Map<String, Object> interfaceImplMap = new ConcurrentHashMap<>();
+    private Map<Class, ArrayList<Class>> interfaceImplMap = new ConcurrentHashMap<>();
     /**
      * Class对象和实例对象的映射
      */
-    private Map<String, Object> classObjectMap = new ConcurrentHashMap<>();
+    private Map<Class, Object> classObjectMap = new ConcurrentHashMap<>();
     /**
      * 用来保存所有实现了BeanPostProcessor的对象，在beanMap中也会再保存一份
      */
@@ -75,7 +79,17 @@ public class GjySpringApplicationContext {
                 if (field.isAnnotationPresent(Autowired.class)) {
                     field.setAccessible(true);
                     String fieldName = field.getName();
-                    Object bean = getBean(fieldName);
+                    Class clazz = field.getType();
+                    // 根据类型获取bean对象
+                    Object bean = getBean(clazz);
+                    // 根据接口类型获取bean对象
+                    if (bean == null) {
+                        bean = getBeanByInterface(clazz);
+                    }
+                    // 根据beanName获取对象
+                    if (bean == null) {
+                        bean = getBean(fieldName);
+                    }
                     try {
                         field.set(instance, bean);
                     } catch (IllegalAccessException e) {
@@ -84,17 +98,31 @@ public class GjySpringApplicationContext {
                 }
             }
         }
-
-
     }
 
     /**
      * 注册单例bean
      */
     private void registerSingletonBean() {
-        for (Map.Entry<String, BeanDefinition> entry : beanDefinitionMap.entrySet()) {
-            getBean(entry.getKey());
+        for (Map.Entry<String, BeanDefinition> entry : beanNameDefinitionMap.entrySet()) {
+//            getBean(entry.getKey());
+            String beanName = entry.getKey();
+            BeanDefinition beanDefinition = entry.getValue();
+            Class clazz = beanDefinition.getClazz();
+            // 单例
+            if (beanDefinition.isSingleton()) {
+                Object bean = createBean(beanName, beanDefinition);
+                singletonObjectMap.put(beanName, bean);
+                classObjectMap.put(clazz, bean);
+                for (Class implInterface : clazz.getInterfaces()) {
+                    if (!interfaceImplMap.containsKey(implInterface)) {
+                        interfaceImplMap.put(implInterface, new ArrayList<>());
+                    }
+                    interfaceImplMap.get(implInterface).add(clazz);
+                }
+            }
         }
+
     }
 
     /**
@@ -102,7 +130,7 @@ public class GjySpringApplicationContext {
      */
     private void registerBeanPostProcess() {
 
-        for (Map.Entry<String, BeanDefinition> entry : beanDefinitionMap.entrySet()) {
+        for (Map.Entry<String, BeanDefinition> entry : beanNameDefinitionMap.entrySet()) {
             Class aClass = entry.getValue().getClazz();
             if (BeanPostProcessor.class.isAssignableFrom(aClass)) {
                 Object bean = getBean(entry.getKey());
@@ -157,28 +185,8 @@ public class GjySpringApplicationContext {
                 String className = absPathName.substring(absPathName.indexOf("com"), absPathName.indexOf(".class"))
                         .replace('\\', '.');
                 System.out.println(className);
-                ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-                try {
-
-                    Class loadClass = classLoader.loadClass(className);
-                    if (loadClass.isAnnotationPresent(Component.class)) {
-                        Component componentAnnotation = (Component) loadClass.getDeclaredAnnotation(Component.class);
-                        String beanName = componentAnnotation.value();
-                        if ("".equals(beanName)) {
-                            beanName = Introspector.decapitalize(loadClass.getSimpleName());
-                        }
-                        // 判断是不是单例
-                        ScopeType scopeType = ScopeType.SINGLETON;
-                        if (loadClass.isAnnotationPresent(Scope.class)) {
-                            scopeType = ((Scope) loadClass.getDeclaredAnnotation(Scope.class)).value();
-                        }
-                        BeanDefinition beanDefinition = new BeanDefinition(loadClass, scopeType);
-                        beanDefinitionMap.put(beanName, beanDefinition);
-                    }
-
-                } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
-                }
+                // 解析bean对象
+                parseBean(className);
 
             }
         }
@@ -205,8 +213,9 @@ public class GjySpringApplicationContext {
                 if (loadClass.isAnnotationPresent(Scope.class)) {
                     scopeType = ((Scope) loadClass.getDeclaredAnnotation(Scope.class)).value();
                 }
-                BeanDefinition beanDefinition = new BeanDefinition(loadClass, scopeType);
-                beanDefinitionMap.put(beanName, beanDefinition);
+                BeanDefinition beanDefinition = new BeanDefinition(beanName, loadClass, scopeType);
+                beanNameDefinitionMap.put(beanName, beanDefinition);
+                classDefinitionMap.put(loadClass, beanDefinition);
             }
 
         } catch (ClassNotFoundException e) {
@@ -214,6 +223,31 @@ public class GjySpringApplicationContext {
         }
 
     }
+
+//    /**
+//     * 获取bean对象
+//     * 1. 调用这个方法是，可能还没有被加入map中，一开始调用时和依赖注入时
+//     *
+//     * @param beanName beanName
+//     * @return
+//     */
+//    public Object getBean(String beanName) {
+//        BeanDefinition beanDefinition = beanDefinitionMap.get(beanName);
+//        if (beanDefinition == null) {
+//            throw new NullPointerException();
+//        } else {
+//            // 单例
+//            if (beanDefinition.isSingleton()) {
+//                if (!singletonObjectMap.containsKey(beanName)) {
+//                    singletonObjectMap.put(beanName, createBean(beanName, beanDefinition));
+//                }
+//                return singletonObjectMap.get(beanName);
+//            } else { // 多例
+//                return createBean(beanName, beanDefinition);
+//            }
+//
+//        }
+//    }
 
     /**
      * 获取bean对象
@@ -223,7 +257,7 @@ public class GjySpringApplicationContext {
      * @return
      */
     public Object getBean(String beanName) {
-        BeanDefinition beanDefinition = beanDefinitionMap.get(beanName);
+        BeanDefinition beanDefinition = beanNameDefinitionMap.get(beanName);
         if (beanDefinition == null) {
             throw new NullPointerException();
         } else {
@@ -238,8 +272,51 @@ public class GjySpringApplicationContext {
             }
 
         }
+    }
 
 
+    /**
+     * 获取bean对象
+     *
+     * @param clazz
+     * @return
+     */
+    public Object getBean(Class clazz) {
+        BeanDefinition beanDefinition = classDefinitionMap.get(clazz);
+        if (beanDefinition == null) {
+            System.out.println(clazz + "不存在！");
+            return null;
+        } else {
+            // 单例
+            if (beanDefinition.isSingleton()) {
+                if (!classObjectMap.containsKey(clazz)) {
+                    classObjectMap.put(clazz, createBean(beanDefinition.getBeanName(), beanDefinition));
+                }
+                return classObjectMap.get(clazz);
+            } else { // 多例
+                return createBean(beanDefinition.getBeanName(), beanDefinition);
+            }
+
+        }
+    }
+
+    /**
+     * 获取bean对象
+     *
+     * @param clazz
+     * @return
+     */
+    public Object getBeanByInterface(Class clazz) {
+        ArrayList<Class> classList = interfaceImplMap.get(clazz);
+        if (classList == null) {
+            throw new NullPointerException();
+        } else {
+            if (classList.size() > 1) {
+                throw new RuntimeException("接口实现类数量不合法，大于1");
+            } else {
+                return getBean(classList.get(0));
+            }
+        }
     }
 
     /**
@@ -268,7 +345,7 @@ public class GjySpringApplicationContext {
             // 设置beamName
             if (instance instanceof BeanNameAware) {
                 BeanNameAware beanNameAware = (BeanNameAware) instance;
-                beanNameAware.setBeamName(beanName);
+                beanNameAware.setBeamName(beanDefinition.getBeanName());
             }
             // 如果没有实现BeanPostProcessor，则需要在创建前调用BeanPostProcessor的before方法
             if (!(instance instanceof BeanPostProcessor)) {

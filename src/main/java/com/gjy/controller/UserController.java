@@ -13,6 +13,11 @@ import com.spring.annotation.Component;
 public class UserController {
 
     @Autowired
-    UserService userService;
+    private UserService userService;
+
+    public void print(){
+        userService.print();
+    }
+
 
 }
