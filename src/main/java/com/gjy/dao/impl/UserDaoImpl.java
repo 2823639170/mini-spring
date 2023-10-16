@@ -2,6 +2,7 @@ package com.gjy.dao.impl;
 
 import com.gjy.dao.UserDao;
 import com.spring.annotation.Component;
+import com.spring.annotation.Repository;
 import com.spring.transactional.TransactionalManager;
 
 import java.sql.Connection;
@@ -12,7 +13,7 @@ import java.util.concurrent.locks.Condition;
 /**
  * @author EVA
  */
-@Component
+@Repository
 public class UserDaoImpl implements UserDao {
 
     @Override

@@ -32,6 +32,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class GjySpringApplicationContext {
 
     private final Class<?> appConfig;
+    private final String springConfig = "spring.xml";
 
     /**
      * 保存beanDefinition信息,key为beanName
@@ -66,6 +67,10 @@ public class GjySpringApplicationContext {
      * 用来保存所有实现了BeanPostProcessor的对象，在beanMap中也会再保存一份
      */
     private final List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
+    /**
+     * 用来保存控制层对象
+     */
+    private Map<Class, Object> controllerMap = new ConcurrentHashMap<>();
 
     public GjySpringApplicationContext(Class<?> appConfig) {
         this.appConfig = appConfig;
@@ -79,6 +84,18 @@ public class GjySpringApplicationContext {
         doAop();
         // 依赖注入
         doDI();
+        // 获取controller集合
+        registerController();
+    }
+
+    /**
+     * 存放所有controller对象
+     */
+    private void registerController() {
+        for (Map.Entry<Class, Object> entry : controllerMap.entrySet()) {
+            Class clazz = entry.getKey();
+            controllerMap.put(clazz, getBean(clazz));
+        }
     }
 
     private void doAop() {
@@ -270,9 +287,25 @@ public class GjySpringApplicationContext {
         try {
 
             Class loadClass = classLoader.loadClass(className);
-            if (loadClass.isAnnotationPresent(Component.class)) {
+            if (loadClass.isAnnotationPresent(Component.class)
+                    || loadClass.isAnnotationPresent(Controller.class)
+                    || loadClass.isAnnotationPresent(Service.class)
+                    || loadClass.isAnnotationPresent(Repository.class)) {
+                if (loadClass.isAnnotationPresent(Controller.class)) {
+                    // 先暂时保存一个数据，后面要换的
+                    controllerMap.put(loadClass, this);
+                }
                 Component componentAnnotation = (Component) loadClass.getDeclaredAnnotation(Component.class);
-                String beanName = componentAnnotation.value();
+                String beanName = "";
+                if (loadClass.isAnnotationPresent(Component.class)) {
+                    beanName = ((Component) loadClass.getDeclaredAnnotation(Component.class)).value();
+                } else if (loadClass.isAnnotationPresent(Controller.class)) {
+                    beanName = ((Controller) loadClass.getDeclaredAnnotation(Controller.class)).value();
+                } else if (loadClass.isAnnotationPresent(Service.class)) {
+                    beanName = ((Service) loadClass.getDeclaredAnnotation(Service.class)).value();
+                } else {
+                    beanName = ((Repository) loadClass.getDeclaredAnnotation(Repository.class)).value();
+                }
                 if ("".equals(beanName)) {
                     beanName = Introspector.decapitalize(loadClass.getSimpleName());
                 }
@@ -423,6 +456,8 @@ public class GjySpringApplicationContext {
                     instance = beanPostProcessor.postProcessAfterInitialization(instance, beanName);
                 }
             }
+
+            // 判断一下是否需要事务代理
             Method[] methods = clz.getDeclaredMethods();
             HashSet<Method> set = new HashSet<>();
             for (Method method : methods) {
@@ -433,7 +468,7 @@ public class GjySpringApplicationContext {
             if (!set.isEmpty()) {
                 CglibProxy cglibProxy = new CglibProxy(clz, instance, set);
                 Object proxyInstance = cglibProxy.getProxyInstance();
-                proxyObjectMap.put(proxyInstance , instance);
+                proxyObjectMap.put(proxyInstance, instance);
                 instance = proxyInstance;
             }
             return instance;
@@ -446,4 +481,7 @@ public class GjySpringApplicationContext {
     }
 
 
+    public Map<Class, Object> getControllerMap() {
+        return this.controllerMap;
+    }
 }

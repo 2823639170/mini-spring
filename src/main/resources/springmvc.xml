@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans>
+
+    <bean id="internalResourceViewResolver" class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <property name="prefix" value="/WEB-INF/jsp/"/>
+        <property name="suffix" value=".jsp"/>
+    </bean>
+
+    <!-- 静态资源放行 -->
+    <resources mapping="/images/**" location="/images/" />
+    <resources mapping="/js/**" location="/js/" />
+    <resources mapping="/css/**" location="/css/" />
+
+</beans>

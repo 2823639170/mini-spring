@@ -1,4 +1,4 @@
-package com.spring.mvc.anno;
+package com.springmvc.anno;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

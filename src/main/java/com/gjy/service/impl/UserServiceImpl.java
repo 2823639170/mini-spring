@@ -4,13 +4,14 @@ import com.gjy.dao.UserDao;
 import com.gjy.service.UserService;
 import com.spring.annotation.Autowired;
 import com.spring.annotation.Component;
+import com.spring.annotation.Service;
 import com.spring.annotation.Transactional;
 
 /**
  * @author 郭建勇
  * @date 2023/10/11
  **/
-@Component
+@Service
 //@Scope(ScopeType.PROTOTYPE)
 public class UserServiceImpl implements UserService {
 
@@ -28,10 +29,10 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void transfer(int fromId, int toId, int money) {
         userDao.updateMoney(fromId, -money);
-        System.out.println(fromId +"用户已经扣钱");
+        System.out.println(fromId + "用户已经扣钱");
 //        int num = 10/0;
         userDao.updateMoney(toId, money);
-        System.out.println(toId +"用户已经加钱");
+        System.out.println(toId + "用户已经加钱");
         System.out.println("转账完成！");
     }
 
